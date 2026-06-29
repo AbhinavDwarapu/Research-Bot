@@ -32,7 +32,8 @@ def search(state: ResearchState) -> dict:
     critique = state.get("critique")
 
     if critique and critique.missing:
-        query = f"{query} {critique.missing}"[:380]
+        tavily_capped_query_length = 380
+        query = f"{query} {critique.missing}"[:tavily_capped_query_length]
 
     results = tavily.invoke({"query": query})
     return {"sources": results["results"]}
