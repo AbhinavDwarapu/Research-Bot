@@ -27,3 +27,15 @@ class ResearchState(TypedDict):
     critique: Critique                         # replaced each loop
     iterations: int                           
 
+tavily = TavilySearch(max_results=5)
+
+def search(state: ResearchState) -> dict:
+    query = state.get("question")
+    critique = state.get("critique")
+
+    if critique and critique.missing:
+        query = f"{query} {critique.missing}"[:380]
+
+    results = tavily.invoke({"query": query})
+    return {"sources": results["results"]}
+
