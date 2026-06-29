@@ -3,3 +3,4 @@ langchain
 langchain-openai
 langchain-tavily
 python-dotenv
+slack-bolt
