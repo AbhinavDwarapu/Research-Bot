@@ -39,3 +39,25 @@ def search(state: ResearchState) -> dict:
     results = tavily.invoke({"query": query})
     return {"sources": results["results"]}
 
+def write(state: ResearchState) -> dict:
+    sources_text = "\n\n".join(
+        f"[{i+1}] {s.get('title', s['url'])} ({s['url']})\n{s.get('content', '')}"
+        for i, s in enumerate(state["sources"])
+    )
+    critique = state.get("critique")
+    revision_note = ""
+
+    if critique and critique.missing:
+        revision_note = f"\n\nThe previous draft was weak here — address it: {critique.missing}"
+
+    prompt = (
+        f"Write a concise, well-organized briefing answering this question:\n"
+        f"{state['question']}\n\n"
+        f"Use only these sources. Cite them inline like [1], [2]:\n\n"
+        f"{sources_text}"
+        f"{revision_note}"
+    )
+
+    response = llm.invoke(prompt)
+    return {"draft": response.content}
+
