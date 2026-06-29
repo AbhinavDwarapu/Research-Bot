@@ -85,3 +85,32 @@ def should_continue(state: ResearchState) -> str:
         return "done"
     return "retry"
 
+
+builder = StateGraph(ResearchState)
+
+builder.add_node("search", search)  
+builder.add_node("write", write)
+builder.add_node("critique", critique)
+
+builder.add_edge(START, "search")
+builder.add_edge("search", "write")
+builder.add_edge("write", "critique")
+builder.add_conditional_edges(
+    "critique",
+    should_continue,
+    {"retry": "search", "done": END},
+)
+
+graph = builder.compile()
+
+def run_agent(question: str) -> str:
+    initial = {"question": question, "sources": [],
+               "draft": "", "critique": None, "iterations": 0}
+    result = graph.invoke(initial, config={"recursion_limit": 10})
+    return result["draft"]
+
+
+if __name__ == "__main__":
+    import sys
+    q = " ".join(sys.argv[1:]) or "state of solid-state batteries"
+    print(run_agent(q))
