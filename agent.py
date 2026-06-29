@@ -61,3 +61,27 @@ def write(state: ResearchState) -> dict:
     response = llm.invoke(prompt)
     return {"draft": response.content}
 
+def critique(state: ResearchState) -> dict:
+    critique_llm = llm.with_structured_output(Critique)
+
+    prompt = (
+        f"You are a tough but fair editor reviewing a research briefing.\n\n"
+        f"Question being answered:\n{state['question']}\n\n"
+        f"Draft:\n{state['draft']}\n\n"
+        f"Judge whether this is thorough, well-supported, and directly answers "
+        f"the question. If it falls short, set is_sufficient to false and explain "
+        f"specifically what's missing or weak so it can be improved."
+    )
+
+    result = critique_llm.invoke(prompt)
+
+    return {
+        "critique": result,
+        "iterations": state["iterations"] + 1,
+    }
+
+def should_continue(state: ResearchState) -> str:
+    if state["critique"].is_sufficient or state["iterations"] >= 3:
+        return "done"
+    return "retry"
+
