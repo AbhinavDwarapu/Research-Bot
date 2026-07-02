@@ -1,14 +1,28 @@
 from dotenv import load_dotenv
 from langchain_tavily import TavilySearch
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_core.vectorstores import InMemoryVectorStore
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.graph import StateGraph, START, END
 
+import glob
 import operator
+import os
 from typing import Annotated, TypedDict
 from pydantic import BaseModel, Field
 
 load_dotenv()
 llm = ChatOpenAI(model="gpt-5.4-mini")
+
+docs_dir = os.path.join(os.path.dirname(__file__), "docs")
+vector_store = InMemoryVectorStore(OpenAIEmbeddings(model="text-embedding-3-small"))
+splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+for path in sorted(glob.glob(os.path.join(docs_dir, "**", "*.md"), recursive=True)
+                   + glob.glob(os.path.join(docs_dir, "**", "*.txt"), recursive=True)):
+    with open(path) as f:
+        chunks = splitter.split_text(f.read())
+    rel = os.path.relpath(path, os.path.dirname(__file__))
+    vector_store.add_texts(chunks, metadatas=[{"source": rel}] * len(chunks))
 
 # What the critique node returns
 class Critique(BaseModel):
@@ -36,7 +50,19 @@ def search(state: ResearchState) -> dict:
         query = f"{query} {critique.missing}"[:tavily_capped_query_length]
 
     results = tavily.invoke({"query": query})
-    return {"sources": results["results"]}
+    sources = results["results"]
+
+    if vector_store.store:
+        seen = {s.get("content") for s in state["sources"]}
+        for doc in vector_store.similarity_search(query, k=3):
+            if doc.page_content not in seen:
+                sources.append({
+                    "title": doc.metadata["source"],
+                    "url": doc.metadata["source"],
+                    "content": doc.page_content,
+                })
+
+    return {"sources": sources}
 
 def write(state: ResearchState) -> dict:
     sources_text = "\n\n".join(
